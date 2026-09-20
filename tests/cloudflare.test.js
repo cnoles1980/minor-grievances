@@ -168,3 +168,26 @@ test("Worker limits writes and rejects malformed cursors and oversized bodies", 
     sql.close();
   }
 });
+
+test("regional policy uses trusted country metadata and ignores spoofed headers", async () => {
+  for (const [country, expected] of [
+    ["US", false],
+    ["DE", true],
+    ["GB", true],
+    ["CH", true],
+    ["BR", true],
+    ["CA", true],
+    [undefined, true],
+  ]) {
+    const request = new Request("https://api.example.com/api/consent-policy", {
+      headers: { Origin: "https://example.com", "CF-IPCountry": "US" },
+    });
+    if (country) request.cf = { country };
+    const response = await worker.fetch(request, {
+      ALLOWED_ORIGIN: "https://example.com",
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal((await response.json()).requiresConsent, expected);
+  }
+});

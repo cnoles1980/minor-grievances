@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import Privacy from "./Privacy.jsx";
+import RegionalConsent from "./RegionalConsent.jsx";
 import { startAnalytics } from "./analytics";
 import NotFound from "./NotFound.jsx";
 import "./styles.css";
@@ -22,6 +23,7 @@ startAnalytics();
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     {isHome ? <App /> : isPrivacy ? <Privacy /> : <NotFound />}
+    <RegionalConsent />
     {!isPrivacy && (
       <a className="analytics-settings privacy-link" href={`${base}/privacy/`}>
         Privacy & analytics

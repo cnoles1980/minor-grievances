@@ -1366,3 +1366,47 @@ main {
   letter-spacing: 1px;
   margin-top: 30px;
 }
+
+.regional-consent {
+  position: fixed;
+  z-index: 30;
+  bottom: 32px;
+  left: 14px;
+  max-width: 360px;
+  width: calc(100% - 28px);
+  padding: 18px;
+  background: #f5f2e7;
+  border: 2px solid #151612;
+  box-shadow: 4px 5px 0 #0002;
+  font-size: 17px;
+}
+.regional-consent p {
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.regional-consent a {
+  color: var(--burgundy);
+  font-size: 14px;
+  text-decoration: underline;
+}
+.regional-consent > div {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.regional-consent button {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #151612;
+  background: #f5f2e7;
+  font: inherit;
+  cursor: pointer;
+}
+.regional-consent button:focus-visible {
+  outline: 2px solid var(--burgundy);
+  outline-offset: 2px;
+}
+.privacy-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

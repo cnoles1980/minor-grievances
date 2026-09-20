@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { requiresAnalyticsConsent } from "./consent-policy.js";
 import { categories, colors } from "../src/seed.js";
 const publicSelect = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
 const publicNote = (n) => ({ ...n, demo: !!n.demo, endorsed: !!n.endorsed });
@@ -95,6 +96,16 @@ async function readBody(request) {
   }
 }
 async function route(request, env) {
+  // Use Cloudflare's trusted connection metadata, never a client country header.
+  // This endpoint does not read/write D1 or require an anonymous visitor ID.
+  if (
+    request.method === "GET" &&
+    new URL(request.url).pathname === "/api/consent-policy"
+  ) {
+    return {
+      data: { requiresConsent: requiresAnalyticsConsent(request.cf?.country) },
+    };
+  }
   if (!env.DB || !env.RATE_LIMIT_SECRET || !env.ADMIN_TOKEN)
     throw new HttpError(503, "The Bureau is not ready to accept filings yet.");
   const url = new URL(request.url),

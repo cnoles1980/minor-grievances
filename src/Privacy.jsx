@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useSyncExternalStore } from "react";
 import {
   analyticsAvailable,
-  analyticsChoice,
+  getAnalyticsState,
+  subscribeAnalytics,
   setAnalyticsChoice,
 } from "./analytics";
 
 export default function Privacy() {
-  const [disabled, setDisabled] = useState(analyticsChoice() === "deny");
+  const status = useSyncExternalStore(subscribeAnalytics, getAnalyticsState);
+  const disabled = !status.active;
   return (
     <main className="privacy-page">
       <article>
@@ -37,11 +39,16 @@ export default function Privacy() {
         <h2>Traffic measurement</h2>
         <p>
           We use Google Analytics 4 to measure visits, sessions, and basic
-          actions such as filing or endorsing a grievance. It loads
-          automatically unless you have opted out here. Google Analytics uses
-          cookies such as _ga and _ga_* to distinguish browsers and sessions. We
-          do not send grievance text, signatures, search terms, or note IDs in
-          our analytics events, and advertising personalization is disabled.
+          actions such as filing or endorsing a grievance. For visitors
+          identified as being in the United States, it loads automatically
+          unless they opt out. Elsewhere, or if location cannot be determined,
+          we ask before loading it. Cloudflare supplies an approximate country
+          from the connection; we do not request device location or store your
+          country for this check. Global Privacy Control keeps analytics off in
+          all regions. Google Analytics uses cookies such as _ga and _ga_* to
+          distinguish browsers and sessions. We do not send grievance text,
+          signatures, search terms, or note IDs in our analytics events, and
+          advertising personalization is disabled.
         </p>
         <p>
           Google and our hosting providers process technical request information
@@ -63,25 +70,29 @@ export default function Privacy() {
         <p aria-live="polite">
           {!analyticsAvailable
             ? "Google Analytics is not enabled on this version of the site."
-            : disabled
-              ? "Analytics is off for this browser."
-              : "Analytics is on for this browser."}
+            : status.pending
+              ? "Checking regional analytics preferences. Analytics is off while we check."
+              : status.blockedByGpc
+                ? "Analytics is off because your browser sends Global Privacy Control."
+                : disabled
+                  ? "Analytics is off for this browser."
+                  : "Analytics is on for this browser."}
         </p>
         {analyticsAvailable && (
           <button
+            disabled={status.pending || status.blockedByGpc}
             onClick={() => {
               setAnalyticsChoice(disabled ? "allow" : "deny");
-              setDisabled(!disabled);
             }}
           >
             {disabled ? "Enable analytics" : "Turn off analytics"}
           </button>
         )}
         <p>
-          Your choice is saved on this browser. You can change it here at any
-          time. Opting out stops future measurement; it does not erase
-          information already sent. Browser settings can also block or remove
-          cookies. The wall works with analytics off.
+          Your explicit choice is saved on this browser for 180 days. You can
+          change it here at any time. Opting out stops future measurement; it
+          does not erase information already sent. Browser settings can also
+          block or remove cookies. The wall works with analytics off.
         </p>
         <h2>Retention and requests</h2>
         <p>
