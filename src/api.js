@@ -1,5 +1,6 @@
 export const previewMode = import.meta.env.VITE_READ_ONLY_PREVIEW === "true";
 const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+export const mediaUrl = id => `${base}/media/${encodeURIComponent(id)}`;
 let visitor;
 try {
   visitor = localStorage.getItem("bureau-visitor");

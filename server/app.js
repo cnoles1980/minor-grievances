@@ -5,7 +5,8 @@ import {
 } from "./content-policy.js";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { decodeMeme, MAX_POST_BYTES } from "./media-policy.js";
 import { dirname, resolve } from "node:path";
 import { seed, categories, colors } from "../src/seed.js";
 export function createApp({
@@ -25,6 +26,9 @@ export function createApp({
   db.exec(`CREATE INDEX IF NOT EXISTS notes_recent ON notes(hidden,created,id);
     CREATE INDEX IF NOT EXISTS notes_votes ON notes(hidden,votes,created,id);
     CREATE INDEX IF NOT EXISTS limits_expiry ON limits(expires);`);
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='note_media'").get()) {
+    db.exec(readFileSync(new URL('../cloudflare/migrations/0002_media_and_reviews.sql', import.meta.url),'utf8'));
+  }
   if (demo && db.prepare("SELECT count(*) AS n FROM notes").get().n === 0) {
     const insert = db.prepare(
       "INSERT INTO notes(id,text,signature,category,color,votes,demo,created) VALUES(?,?,?,?,?,?,1,?)",
@@ -69,7 +73,9 @@ export function createApp({
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
   });
-  app.use(express.json({ limit: "4kb" }));
+  const smallJson = express.json({ limit: "4kb" });
+  const memeJson = express.json({ limit: MAX_POST_BYTES });
+  app.use((req, res, next) => (req.path === "/api/notes" ? memeJson : smallJson)(req, res, next));
   const hash = (value) =>
     createHmac("sha256", secret).update(value).digest("hex");
   function throttle(req, res, type, max) {
@@ -100,7 +106,13 @@ export function createApp({
     next();
   });
   const publicNote = (n) => ({ ...n, demo: !!n.demo, endorsed: !!n.endorsed });
-  const select = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
+  app.get("/media/:id", (req, res) => {
+    if (!throttle(req, res, "media", 800)) return;
+    const media = db.prepare("SELECT m.data FROM note_media m JOIN notes n ON n.id=m.note_id WHERE m.note_id=? AND n.hidden=0").get(req.params.id);
+    if (!media) return res.status(404).end();
+    res.set({"Content-Type":"image/webp", "Content-Security-Policy":"default-src 'none'; sandbox", "Referrer-Policy":"no-referrer"}).send(Buffer.from(media.data));
+  });
+  const select = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM note_media m WHERE m.note_id=n.id) AS hasImage,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
   // SQL fragments come only from this fixed allowlist, never from user input.
   const sortOrders = {
     recent: { direction: "DESC", comparison: "<", votes: false },
@@ -166,7 +178,9 @@ export function createApp({
     res.json(publicNote(n));
   });
   app.post("/api/notes", (req, res) => {
-    const { text, signature = "", category, color } = req.body || {};
+    const { text, signature = "", category, color, image } = req.body || {};
+    if (!image && Number(req.get("content-length") || 0) > 4096)
+      return res.status(413).json({ error: "That filing is too large." });
     if (
       typeof text !== "string" ||
       text.trim().length < 3 ||
@@ -183,7 +197,11 @@ export function createApp({
     if (!throttle(req, res, "post", 5)) return;
     if (violatesContentPolicy(text, signature))
       return res.status(400).json({ error: contentPolicyMessage });
+    let media;
+    try { media = decodeMeme(image); } catch (error) { return res.status(400).json({error:error.message}); }
     const id = randomUUID();
+    db.exec("BEGIN");
+    try {
     db.prepare(
       "INSERT INTO notes(id,text,signature,category,color,created) VALUES(?,?,?,?,?,?)",
     ).run(
@@ -194,6 +212,13 @@ export function createApp({
       color,
       Date.now(),
     );
+    if (media) db.prepare("INSERT INTO note_media(note_id,data) VALUES(?,?)").run(id, media);
+    db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      if (String(error.message).includes("media_capacity")) return res.status(503).json({error:"The meme cabinet is full. You can still file a text-only grievance."});
+      throw error;
+    }
     res
       .status(201)
       .json(

@@ -11,8 +11,10 @@ import {
   Check,
   Shuffle,
 } from "@phosphor-icons/react";
-import { api, previewMode } from "./api";
+import { api, previewMode, mediaUrl } from "./api";
 import { categories, colors } from "./seed";
+import EmojiPicker from "./EmojiPicker";
+import { prepareMeme } from "./meme";
 const rotations = [-5, 2, -1, 5, -4, 2, -2, 3];
 const fmt = (n) => n.toLocaleString("en-US").replaceAll(",", " ");
 export default function App() {
@@ -34,7 +36,10 @@ export default function App() {
     [color, setColor] = useState("yellow"),
     [kind, setKind] = useState("Misc"),
     [formError, setFormError] = useState("");
+  const [meme, setMeme] = useState(null), [memeBusy, setMemeBusy] = useState(false);
+  const memeVersion = useRef(0);
   const dialog = useRef(null),
+    complaintInput = useRef(null),
     wall = useRef(null),
     drag = useRef(null),
     timer = useRef(null),
@@ -47,6 +52,18 @@ export default function App() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(""), 4000);
   };
+  function insertEmoji(emoji) {
+    const input = complaintInput.current;
+    const start = input?.selectionStart ?? text.length;
+    const end = input?.selectionEnd ?? start;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    if (next.length > 240) {
+      setFormError("That emoji needs a little more room. Keep your grievance within 240 characters.");
+      return;
+    }
+    setText(next);
+    requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + emoji.length, start + emoji.length); });
+  }
   const queryString = () =>
     `category=${encodeURIComponent(category)}&q=${encodeURIComponent(search)}&sort=${sort}`;
   async function refresh() {
@@ -197,10 +214,11 @@ export default function App() {
   }
   async function submit(e) {
     e.preventDefault();
+    if (memeBusy || busy === "submit") return;
     setBusy("submit");
     setFormError("");
     try {
-      const n = await api("/notes", { text, signature, category: kind, color });
+      const n = await api("/notes", { text, signature, category: kind, color, ...(meme ? {image:meme.split(',')[1]} : {}) });
       setNotes((items) => [n, ...items]);
       setCategory("All");
       setSearch("");
@@ -209,6 +227,7 @@ export default function App() {
       dialog.current.close();
       setText("");
       setSignature("");
+      setMeme(null);
       focusNote(n.id);
       trackAction("grievance_filed");
       announce("OFFICIALLY NOTED. Nothing will be done.");
@@ -406,6 +425,7 @@ export default function App() {
                   </span>
                 )}
                 <p className="note-text">{n.text}</p>
+                {!!n.hasImage && <img className="note-meme" src={mediaUrl(n.id)} alt="Meme attached to this grievance" loading="lazy" decoding="async" referrerPolicy="no-referrer" />}
                 <p className="signature">— {n.signature || "Anonymous"}</p>
                 <div className="note-footer">
                   <div className="note-tools" hidden={previewMode}>
@@ -511,6 +531,7 @@ export default function App() {
           </p>
           <label htmlFor="complaint">What’s annoying you?</label>
           <textarea
+            ref={complaintInput}
             id="complaint"
             maxLength={240}
             minLength={3}
@@ -520,6 +541,19 @@ export default function App() {
             onChange={(e) => setText(e.target.value)}
           />
           <div className="counter">{text.length} / 240</div>
+          <EmojiPicker onInsert={insertEmoji} disabled={busy === "submit"} />
+          <label className="meme-label">Attach a meme <span>(optional)</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={memeBusy || busy === "submit"} onChange={async e => {
+              const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
+              const version = ++memeVersion.current; setMemeBusy(true); setFormError("");
+              try { const prepared = await prepareMeme(file); if (version === memeVersion.current) setMeme(prepared); }
+              catch(error) { if(version === memeVersion.current) setFormError(error.message); }
+              finally { if(version === memeVersion.current) setMemeBusy(false); }
+            }} />
+          </label>
+          <p className="meme-help">Images up to 5 MB. We resize them; GIFs become still images. The word filter cannot read text inside memes.</p>
+          {memeBusy && <p role="status">Preparing your meme…</p>}
+          {meme && <div className="meme-preview"><img src={meme} alt="Your meme preview" /><button type="button" onClick={() => { memeVersion.current++; setMeme(null); setMemeBusy(false); }}>Remove image</button></div>}
           <label htmlFor="signature">
             Sign it <span>(optional)</span>
           </label>
@@ -566,7 +600,7 @@ export default function App() {
               {formError}
             </p>
           )}
-          <button className="file-button submit" disabled={busy === "submit"}>
+          <button className="file-button submit" disabled={busy === "submit" || memeBusy}>
             {busy === "submit" ? "FILING…" : "MAKE IT OFFICIAL"}{" "}
             <ArrowRight size={20} />
           </button>

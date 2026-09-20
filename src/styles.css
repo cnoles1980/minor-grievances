@@ -1410,3 +1410,17 @@ main {
   opacity: 0.5;
   cursor: default;
 }
+.emoji-picker { margin: 0 0 16px; }
+.emoji-picker > button { padding: 5px 10px; background: transparent; border: 1px solid #24251c60; font: inherit; cursor: pointer; }
+.emoji-options { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 8px 0; }
+.emoji-options button { background: transparent; border: 1px solid transparent; font-size: 24px; cursor: pointer; padding: 4px; }
+.emoji-options button:hover, .emoji-options button:focus-visible { background: #fff000; border-color: #24251c; }
+@media(max-width: 400px) { .emoji-options { grid-template-columns: repeat(4, 1fr); } }
+.meme-label { display: block; margin: 4px 0 6px; font-weight: 600; }
+.meme-label span, .meme-help { color: #5b5c50; font-size: 13px; font-weight: 400; }
+.meme-label input { display: block; margin-top: 6px; max-width: 100%; font: inherit; }
+.meme-help { margin: 0 0 10px; line-height: 1.35; }
+.meme-preview { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 14px; }
+.meme-preview img { display: block; width: min(100%, 320px); max-height: 220px; object-fit: contain; border: 1px solid #24251c; background: #f5f2e7; }
+.meme-preview button { padding: 5px 8px; border: 1px solid #24251c; background: transparent; font: inherit; cursor: pointer; }
+.note-meme { display: block; width: min(100%, 420px); max-height: 320px; object-fit: contain; margin: 8px 0 12px; border: 1px solid #24251c55; background: #f5f2e7; }

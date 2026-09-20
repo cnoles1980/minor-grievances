@@ -13,6 +13,12 @@ function fixture() {
       "utf8",
     ),
   );
+  sql.exec(
+    readFileSync(
+      new URL("../cloudflare/migrations/0002_media_and_reviews.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   const DB = {
     prepare(query) {
       let values = [];

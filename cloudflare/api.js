@@ -5,7 +5,8 @@ import {
   contentPolicyMessage,
 } from "../server/content-policy.js";
 import { categories, colors } from "../src/seed.js";
-const publicSelect = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
+import { decodeMeme, MAX_POST_BYTES } from "../server/media-policy.js";
+const publicSelect = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM note_media m WHERE m.note_id=n.id) AS hasImage,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
 const publicNote = (n) => ({ ...n, demo: !!n.demo, endorsed: !!n.endorsed });
 const sortOrders = {
   recent: ["DESC", "<", false],
@@ -68,10 +69,10 @@ async function limit(db, key, max) {
       { "Retry-After": String(Math.ceil((row.expires - now) / 1000)) },
     );
 }
-async function readBody(request) {
+async function readBody(request, maxBytes = 4096) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new HttpError(415, "Send application/json.");
-  if (Number(request.headers.get("content-length")) > 4096)
+  if (Number(request.headers.get("content-length")) > maxBytes)
     throw new HttpError(413, "That filing is too large.");
   const reader = request.body?.getReader();
   if (!reader) throw new HttpError(400, "Invalid request.");
@@ -81,7 +82,7 @@ async function readBody(request) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > 4096) {
+    if (size > maxBytes) {
       await reader.cancel();
       throw new HttpError(413, "That filing is too large.");
     }
@@ -124,6 +125,13 @@ async function route(request, env) {
   const ip = request.headers.get("CF-Connecting-IP");
   if (!ip) throw new HttpError(400, "Missing network identity.");
   const network = await hmac(env.RATE_LIMIT_SECRET, `ip:${ip}`);
+  const mediaMatch = path.match(/^\/media\/([a-zA-Z0-9-]{1,80})$/);
+  if (method === "GET" && mediaMatch) {
+    await limit(db, `media:${network}`, 800);
+    const media = await db.prepare("SELECT m.data FROM note_media m JOIN notes n ON n.id=m.note_id WHERE m.note_id=? AND n.hidden=0").bind(mediaMatch[1]).first();
+    if (!media) throw new HttpError(404, "Image not found.");
+    return { binary: new Uint8Array(media.data), contentType: "image/webp" };
+  }
   if (path.startsWith("/admin/")) {
     await limit(db, `admin:${network}`, 30);
     const token =
@@ -213,7 +221,10 @@ async function route(request, env) {
       signature = "",
       category,
       color,
-    } = (await readBody(request)) || {};
+      image,
+    } = (await readBody(request, MAX_POST_BYTES)) || {};
+    if (!image && (Number(request.headers.get("content-length") || 0) > 4096 || typeof text === "string" && text.length > 4096))
+      throw new HttpError(413, "That filing is too large.");
     if (
       typeof text !== "string" ||
       text.trim().length < 3 ||
@@ -229,8 +240,10 @@ async function route(request, env) {
       );
     if (violatesContentPolicy(text, signature))
       throw new HttpError(400, contentPolicyMessage);
+    let media;
+    try { media = decodeMeme(image); } catch (error) { throw new HttpError(400, error.message); }
     const id = crypto.randomUUID();
-    await db
+    const insert = db
       .prepare(
         "INSERT INTO notes(id,text,signature,category,color,created) VALUES(?,?,?,?,?,?)",
       )
@@ -241,8 +254,13 @@ async function route(request, env) {
         category,
         color,
         Date.now(),
-      )
-      .run();
+      );
+    try {
+      await db.batch([insert, ...(media ? [db.prepare("INSERT INTO note_media(note_id,data) VALUES(?,?)").bind(id, media.buffer)] : [])]);
+    } catch (error) {
+      if (String(error.message).includes("media_capacity")) throw new HttpError(503, "The meme cabinet is full. You can still file a text-only grievance.");
+      throw error;
+    }
     return {
       status: 201,
       data: publicNote(
@@ -325,6 +343,7 @@ export default {
       return new Response(null, { status: 204, headers });
     try {
       const result = await route(request, env);
+      if (result.binary) return new Response(result.binary, { headers: { ...headers, "Content-Type": result.contentType, "Content-Security-Policy": "default-src 'none'; sandbox", "Referrer-Policy": "no-referrer" } });
       return new Response(JSON.stringify(result.data), {
         status: result.status || 200,
         headers,
