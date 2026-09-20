@@ -16,9 +16,13 @@ function gtag() {
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push(arguments);
 }
-export function setAnalyticsChoice(choice) {
+// Match the site's notice-and-opt-out approach without overriding saved refusals.
+export function startAnalytics() {
+  setAnalyticsChoice(analyticsChoice() === "deny" ? "deny" : "allow", false);
+}
+export function setAnalyticsChoice(choice, persist = true) {
   try {
-    localStorage.setItem(key, choice);
+    if (persist) localStorage.setItem(key, choice);
   } catch {}
   active = choice === "allow" && analyticsAvailable;
   window[`ga-disable-${id}`] = !active;
@@ -38,6 +42,11 @@ export function setAnalyticsChoice(choice) {
   const isHome = [base, `${base}index.html`, base.replace(/\/$/, "")].includes(
     location.pathname,
   );
+  const isPrivacy = [
+    `${base}privacy/`,
+    `${base}privacy`,
+    `${base}privacy/index.html`,
+  ].includes(location.pathname);
   // Never send user-authored text, signatures, queries, fragments, or arbitrary 404 URLs.
   gtag("config", id, {
     send_page_view: false,
@@ -45,9 +54,13 @@ export function setAnalyticsChoice(choice) {
     allow_ad_personalization_signals: false,
     cookie_domain: "none",
     cookie_flags: "SameSite=Lax;Secure",
-    page_location: `${location.origin}${base}${isHome ? "" : "404.html"}`,
+    page_location: `${location.origin}${base}${isHome ? "" : isPrivacy ? "privacy/" : "404.html"}`,
     page_referrer: "",
-    page_title: isHome ? "The Bureau of Minor Grievances" : "Complaint 404",
+    page_title: isHome
+      ? "The Bureau of Minor Grievances"
+      : isPrivacy
+        ? "Privacy"
+        : "Complaint 404",
   });
   gtag("event", "page_view");
 }
