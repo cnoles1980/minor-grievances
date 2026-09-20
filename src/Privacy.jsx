@@ -26,7 +26,10 @@ export default function Privacy() {
           Posts and optional signatures appear on the public wall. Do not
           include private details about yourself or anyone else. Notes,
           endorsements, and reports are stored in Cloudflare D1. Reporting a
-          note sends it for human review; it does not automatically remove it.
+          note sends it for human review; it does not automatically remove it. A
+          small automatic filter rejects explicit racial slurs in new posts and
+          signatures. Rejected submissions are not saved to the grievance
+          database or sent to an AI moderation service.
         </p>
         <h2>No account required</h2>
         <p>

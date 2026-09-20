@@ -1,5 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { requiresAnalyticsConsent } from "./consent-policy.js";
+import {
+  violatesContentPolicy,
+  contentPolicyMessage,
+} from "../server/content-policy.js";
 import { categories, colors } from "../src/seed.js";
 const publicSelect = `SELECT n.id,n.text,n.signature,n.category,n.color,n.votes,n.demo,n.created,EXISTS(SELECT 1 FROM endorsements e WHERE e.note_id=n.id AND e.visitor=?) AS endorsed FROM notes n`;
 const publicNote = (n) => ({ ...n, demo: !!n.demo, endorsed: !!n.endorsed });
@@ -223,6 +227,8 @@ async function route(request, env) {
         400,
         "Use 3–240 characters, a signature of 40 characters or fewer, and a valid category and paper color.",
       );
+    if (violatesContentPolicy(text, signature))
+      throw new HttpError(400, contentPolicyMessage);
     const id = crypto.randomUUID();
     await db
       .prepare(

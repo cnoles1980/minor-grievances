@@ -50,6 +50,10 @@ This is a small public beta with server-side validation, parameterized SQL, atom
 
 ## Moderation
 
+New posts and signatures pass a narrow server-side racial/ethnic slur check in `server/content-policy.js`, shared by the local API and Cloudflare Worker. Ordinary profanity and identity terms remain allowed. Matching normalizes case, Unicode width/accents, invisible formatting, basic numeric substitutions and separators; word boundaries reduce false positives. Rejected content receives HTTP 400 and is not saved or sent to an AI service. Both APIs still rate-limit attempts.
+
+This small English-language list is not a comprehensive hate-speech detector. Quoted/reclaimed uses of listed terms are also rejected; coded abuse, other languages and deliberate evasions can pass. Existing posts are not retroactively altered. Reports remain the path for contextual abuse, threats and private information. There is no automatic human monitoring or notification service: review the queue using the helper below and reversibly hide problem notes. Expand the list cautiously and add false-positive tests when doing so.
+
 Use the provided helper from a trusted terminal with ADMIN_TOKEN and BUREAU_API_URL set. For this checkout, load the ignored recovery file without printing its contents:
 
 ```powershell

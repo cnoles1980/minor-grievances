@@ -191,3 +191,37 @@ test("regional policy uses trusted country metadata and ignores spoofed headers"
     assert.equal((await response.json()).requiresConsent, expected);
   }
 });
+
+test("Worker blocks slurs in notes and signatures without saving rejected content", async () => {
+  const { sql, request } = fixture();
+  try {
+    for (const body of [
+      { text: "n.i.g.g.e.r", signature: "QA" },
+      { text: "A harmless complaint", signature: "wetback" },
+    ]) {
+      const response = await request("/api/notes", {
+        ...body,
+        category: "Tech",
+        color: "yellow",
+      });
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /Racial slurs/);
+    }
+    assert.equal(
+      sql.prepare("SELECT count(*) AS count FROM notes").get().count,
+      0,
+    );
+    assert.equal(
+      (
+        await request("/api/notes", {
+          text: "This fucking printer is shit.",
+          category: "Tech",
+          color: "yellow",
+        })
+      ).status,
+      201,
+    );
+  } finally {
+    sql.close();
+  }
+});

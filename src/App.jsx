@@ -558,8 +558,8 @@ export default function App() {
             </fieldset>
           </div>
           <p className="guidelines">
-            Complain about the little things. No private details, threats, hate,
-            or targeting real people.
+            Swearing is fine. Racial slurs aren’t. No private details, threats,
+            hate, or targeting real people.
           </p>
           {formError && (
             <p role="alert" className="form-error">

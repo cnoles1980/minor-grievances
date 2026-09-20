@@ -1,4 +1,8 @@
 import express from "express";
+import {
+  violatesContentPolicy,
+  contentPolicyMessage,
+} from "./content-policy.js";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -177,6 +181,8 @@ export function createApp({
           "Use 3–240 characters, a signature of 40 characters or fewer, and a valid category and paper color.",
       });
     if (!throttle(req, res, "post", 5)) return;
+    if (violatesContentPolicy(text, signature))
+      return res.status(400).json({ error: contentPolicyMessage });
     const id = randomUUID();
     db.prepare(
       "INSERT INTO notes(id,text,signature,category,color,created) VALUES(?,?,?,?,?,?)",
@@ -280,11 +286,9 @@ export function createApp({
     ) {
       return res.status(404).sendFile(resolve("dist/client/404.html"));
     }
-    res
-      .status(404)
-      .json({
-        error: "This page has gone missing. A grievance has been filed.",
-      });
+    res.status(404).json({
+      error: "This page has gone missing. A grievance has been filed.",
+    });
   });
   app.use((err, req, res, next) => {
     console.error(

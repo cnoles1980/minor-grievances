@@ -255,3 +255,28 @@ test("security headers, oversized payloads and unauthenticated moderation are sa
     );
     assert.equal((await request("/admin/notes/missing/hide", {})).status, 401);
   }));
+
+test("slur guard rejects text and signatures before persistence but permits profanity", () =>
+  fixture(async (request, db) => {
+    for (const body of [
+      { ...note, text: "n1gg3r" },
+      { ...note, signature: "wetback" },
+    ]) {
+      const r = await request("/api/notes", body);
+      assert.equal(r.status, 400);
+      assert.match((await r.json()).error, /Racial slurs/);
+    }
+    assert.equal(
+      db.prepare("SELECT count(*) AS count FROM notes").get().count,
+      0,
+    );
+    assert.equal(
+      (
+        await request("/api/notes", {
+          ...note,
+          text: "This fucking printer is shit.",
+        })
+      ).status,
+      201,
+    );
+  }));
