@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "start": "node server/start.js",
-    "test": "node --test tests/api.test.js tests/config.test.js tests/preview.test.js tests/cloudflare.test.js"
+    "test": "node --test tests/api.test.js tests/config.test.js tests/preview.test.js tests/cloudflare.test.js tests/analytics.test.js"
   },
   "dependencies": {
     "@fontsource/anton": "^5.3.0",
