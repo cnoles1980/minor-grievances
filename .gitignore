@@ -1,0 +1,15 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+*.log
+
+# Local agent notes and screenshots are not website source.
+AGENTS.md
+evidence/
+design-qa.md
+security-review.md
+scripts/compare.py
+
