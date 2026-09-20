@@ -9,6 +9,7 @@ import {
   LinkSimple,
   Flag,
   Check,
+  Shuffle,
 } from "@phosphor-icons/react";
 import { api, previewMode } from "./api";
 import { categories, colors } from "./seed";
@@ -19,6 +20,7 @@ export default function App() {
     [category, setCategory] = useState("All"),
     [search, setSearch] = useState(""),
     [sort, setSort] = useState("recent"),
+    [shuffleOrder, setShuffleOrder] = useState(null),
     [zoom, setZoom] = useState(1),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -48,6 +50,7 @@ export default function App() {
   const queryString = () =>
     `category=${encodeURIComponent(category)}&q=${encodeURIComponent(search)}&sort=${sort}`;
   async function refresh() {
+    setShuffleOrder(null);
     const version = ++pageVersion.current;
     moreFailed.current = false;
     setLoading(true);
@@ -135,6 +138,11 @@ export default function App() {
   }, [category, search, sort]);
   // Re-sort loaded notes when posting or endorsing changes their position.
   const compareNotes = (a, b) => {
+    if (shuffleOrder)
+      return (
+        (shuffleOrder.get(a.id) ?? Infinity) -
+        (shuffleOrder.get(b.id) ?? Infinity)
+      );
     const tie =
       a.created - b.created || (a.id > b.id ? 1 : a.id < b.id ? -1 : 0);
     if (sort === "oldest") return tie;
@@ -197,6 +205,7 @@ export default function App() {
       setCategory("All");
       setSearch("");
       setSort("recent");
+      setShuffleOrder(null);
       dialog.current.close();
       setText("");
       setSignature("");
@@ -219,6 +228,19 @@ export default function App() {
     } catch (e) {
       announce(e.message);
     }
+  }
+  function shuffleGrievances() {
+    const mixed = [...visible];
+    for (let i = mixed.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [mixed[i], mixed[j]] = [mixed[j], mixed[i]];
+    }
+    // Make every click visibly useful, even if chance returned the same order.
+    if (mixed.length > 1 && mixed.every((note, i) => note.id === visible[i].id))
+      mixed.push(mixed.shift());
+    setShuffleOrder(new Map(mixed.map((note, i) => [note.id, i])));
+    wall.current?.scrollTo(0, 0);
+    announce("Loaded grievances shuffled. Same irritation, fresh order.");
   }
   return (
     <main>
@@ -297,19 +319,33 @@ export default function App() {
           SORT BY
           <select
             id="sort-order"
-            value={sort}
+            value={shuffleOrder ? "shuffled" : sort}
             onChange={(e) => {
+              setShuffleOrder(null);
               setSort(e.target.value);
               trackAction("sort_changed");
               wall.current.scrollTo(0, 0);
             }}
           >
+            {shuffleOrder && (
+              <option value="shuffled" disabled>
+                Shuffled
+              </option>
+            )}
             <option value="recent">Recent (new to old)</option>
             <option value="oldest">Old to new</option>
             <option value="most">Most +1s</option>
             <option value="least">Least +1s</option>
           </select>
         </label>
+        <button
+          className="shuffle-button"
+          onClick={shuffleGrievances}
+          disabled={loading || visible.length < 2}
+          title="Shuffle the grievances currently loaded on the wall"
+        >
+          <Shuffle size={18} aria-hidden="true" /> Shuffle Grievances
+        </button>
       </div>
       <section
         ref={wall}

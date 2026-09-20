@@ -1111,8 +1111,33 @@ main {
 .sort-row {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
   justify-content: flex-end;
   padding: 6px 0 0;
+}
+.shuffle-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid #24251c45;
+  background: #f5f2e7;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.shuffle-button:hover:not(:disabled) {
+  background: #eee7c9;
+}
+.shuffle-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.shuffle-button:focus-visible {
+  outline: 2px solid var(--burgundy);
+  outline-offset: 2px;
 }
 .sort-row label {
   display: flex;
