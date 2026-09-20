@@ -13,3 +13,7 @@ design-qa.md
 security-review.md
 scripts/compare.py
 
+.wrangler/
+.dev.vars
+.dev.vars.*
+cloudflare-secrets.json

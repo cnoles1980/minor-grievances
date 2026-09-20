@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "start": "node server/start.js",
-    "test": "node --test tests/api.test.js tests/config.test.js tests/preview.test.js"
+    "test": "node --test tests/api.test.js tests/config.test.js tests/preview.test.js tests/cloudflare.test.js"
   },
   "dependencies": {
     "@fontsource/anton": "^5.3.0",
@@ -27,6 +27,7 @@
     "node": ">=24.0.0"
   },
   "devDependencies": {
-    "prettier": "^3.9.8"
+    "prettier": "^3.9.8",
+    "wrangler": "^4.135.0"
   }
 }

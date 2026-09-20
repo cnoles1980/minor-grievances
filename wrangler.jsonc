@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "minor-grievances-api",
+  "main": "cloudflare/api.js",
+  "compatibility_date": "2026-09-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": { "ALLOWED_ORIGIN": "https://cnoles1980.github.io" },
+  "triggers": { "crons": ["0 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "minor-grievances",
+      "database_id": "b64b7948-b590-4c96-b4ec-5be65a756669",
+      "migrations_dir": "cloudflare/migrations",
+    },
+  ],
+}

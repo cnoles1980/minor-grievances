@@ -32,27 +32,32 @@ npm run test:sites
 npm audit
 ```
 
-API tests cover persistence, duplicate endorsements, multiple anonymous visitors, validation, SQL-like input, denied origins, limits, reports, moderator authentication, hide/restore, pagination during concurrent insertions, filters, and direct links. `design-qa.md` records browser verification.
+API tests cover persistence, duplicate endorsements, multiple anonymous visitors, validation, SQL-like input, denied origins, limits, reports, moderator authentication, hide/restore, pagination during concurrent insertions, filters, and direct links. Browser checks cover the published home and custom 404.
 
-## GitHub Pages + API deployment
+## Public deployment
 
-GitHub Pages hosts the frontend only. A Node host with a persistent volume must run the API. Do not publish just the static build and expect shared posting to work.
+Live site: https://cnoles1980.github.io/minor-grievances/
 
-1. Deploy this repository to a Node 24 host with a persistent disk. Install with `npm ci`, build with `npm run build`, start with `npm start`. Set `NODE_ENV=production`, `HOST=0.0.0.0`, the host-provided `PORT`, and `DB_PATH` to the mounted disk (for example `/data/bureau.sqlite`). Use a **fresh production database**, not the seeded preview database.
-2. In the host's secret settings, create separate random values of at least 32 bytes for `ADMIN_TOKEN` and `RATE_LIMIT_SECRET`. Keep the rate-limit secret stable: it also hashes anonymous visitor IDs used for endorsement deduplication. Do not put either secret in frontend variables, GitHub source, or browser code.
-3. Set `ALLOWED_ORIGIN=https://YOURNAME.github.io` (origin only, no repository path). Enable HTTPS for the API. The server refuses production startup without the three required settings.
-4. For the frontend build, set `VITE_API_URL=https://YOUR-API-HOST` and `VITE_BASE_PATH=/YOUR-REPOSITORY/`. If serving from a custom domain root, use `/`. Run `npm run build` and publish **dist/client** with GitHub Pages. Only the two `VITE_` variables are public.
-5. Before sharing publicly, verify from two separate browsers that posting and endorsements are shared, duplicate endorsements are blocked, and reports appear in moderation. Establish a reporting review routine, database backups, and an edge rate limit/bot challenge appropriate to the host.
+GitHub Pages serves the frontend; Cloudflare Worker minor-grievances-api handles shared posts and endorsements, backed by the separate minor-grievances D1 database. Production starts empty; local illustrative notes and user data are not copied. Staticbreaker is unaffected.
 
-The API can also serve the built frontend from the same Node host. In that case leave `VITE_API_URL` empty, use root base `/`, and set `ALLOWED_ORIGIN` to that host's HTTPS origin. No accounts or third-party services were created, and nothing has been published.
+Frontend pushes to main deploy automatically. Repository variables BUREAU_API_URL and BUREAU_GA4_ID configure the public API URL and optional analytics ID. Backend changes require npm ci, npx wrangler d1 migrations apply minor-grievances --remote, then npx wrangler deploy. Review migrations before applying to existing data.
 
-### Deployment limits
+ADMIN_TOKEN and RATE_LIMIT_SECRET are independent random secrets stored in Cloudflare Worker secrets. Keep RATE_LIMIT_SECRET stable for endorsement deduplication. An ignored local cloudflare-secrets.json holds the initial recovery copy; keep it private and back it up in your password manager. Never put secrets in VITE_ variables or Git. Wrangler authorization is encrypted using Windows Credential Manager.
 
-This is a working prototype, not a hardened high-traffic community service. Anonymous browser IDs can be reset by clearing storage. IP limits do not prove a unique human. Proxy trust is deliberately disabled; behind a reverse proxy, configure the **specific trusted proxy** before relying on per-IP limits, or unrelated users may share one limit. Never blindly trust arbitrary forwarded headers. Add edge protection and consider a privacy notice before a public launch. Reports do not automatically remove notes; a moderator must review them. SQLite uses one persistent server instance; horizontal scaling needs a different storage/coordination approach. Back up the database using SQLite-aware backups, including WAL handling. Browser testing here covers desktop and simulated mobile viewport, not a physical phone keyboard.
+### Operating limits
+
+This is a small public beta with server-side validation, parameterized SQL, atomic endorsement counting, protected moderation, and IP limits. Anonymous browser IDs can be reset and IP limits do not establish unique humans. Distributed spam can still consume service quotas; monitor Cloudflare usage and add a bot challenge if needed. No paid plan upgrade was made. Reports require human review; they do not automatically hide notes. Review reports regularly and export D1 backups before schema changes. The local Node server is for development; its proxy settings do not govern the Cloudflare deployment.
 
 ## Moderation
 
-Use the provided helper from a trusted terminal with `ADMIN_TOKEN` and `BUREAU_API_URL` set in that terminal environment:
+Use the provided helper from a trusted terminal with ADMIN_TOKEN and BUREAU_API_URL set. For this checkout, load the ignored recovery file without printing its contents:
+
+```powershell
+$env:ADMIN_TOKEN = (Get-Content cloudflare-secrets.json -Raw | ConvertFrom-Json).ADMIN_TOKEN
+$env:BUREAU_API_URL = "https://minor-grievances-api.cnoles1980.workers.dev"
+```
+
+Then review reports or reversibly hide/restore a complaint:
 
 ```powershell
 node scripts/moderate.mjs list
@@ -73,7 +78,7 @@ node scripts/moderate.mjs restore COMPLAINT_ID
 - `public/assets/grid.png`: generated ivory graph-paper texture.
 - `evidence/`: comparison and responsive screenshots.
 
-Fonts are self-hosted open-source Anton, Patrick Hand, Barlow Condensed, and Caveat via Fontsource; icons are Phosphor. No analytics or AI API calls occur when people use the site.
+Fonts are self-hosted open-source Anton, Patrick Hand, Barlow Condensed, and Caveat via Fontsource; icons are Phosphor. Google Analytics is optional and consent-gated. No AI API calls occur when people use the site.
 
 The two raster assets were created with built-in imagegen. Mascot prompt: “Faithfully recreate the reference’s bottom-center annoyed sticky-note mascot as a centered standalone transparent logo, yellow textured paper, black unimpressed face, folded lower-right corner, no wordmark, readable at 80px.” Texture prompt: “Seamless opaque ivory graph paper, understated thin gray-beige 12-by-12 grid, flat frontal view, no text, shadows, folds, or objects.”
 
@@ -81,9 +86,9 @@ The two raster assets were created with built-in imagegen. Mascot prompt: “Fai
 
 The front page defaults to Recent (new to old) on a fresh load. Old to new, Most +1s, and Least +1s apply server-side across the database, search, and category filters. Pagination uses created/id tie-breakers and vote-aware cursors. Posting a new grievance returns to Recent so the new note is easy to find. Rankings can shift as other people endorse notes; refresh to get current ordering.
 
-Production startup now requires independently generated ADMIN_TOKEN and RATE_LIMIT_SECRET values of at least 43 characters and an exact HTTPS ALLOWED_ORIGIN. Generate at least 32 random bytes per secret (64 hex characters); store them in your host's secret manager. Read security-review.md before public deployment for the remaining host, moderation, and backup requirements.
+Production startup now requires independently generated ADMIN_TOKEN and RATE_LIMIT_SECRET values of at least 43 characters and an exact HTTPS ALLOWED_ORIGIN. Generate at least 32 random bytes per secret (64 hex characters); store them in your host's secret manager. The Cloudflare deployment uses Worker secrets for these values.
 
-## Published preview and GA4
+## GitHub Pages and GA4
 
 GitHub Actions publishes `dist/client` to GitHub Pages. If the repository variable `BUREAU_API_URL` is unset, it builds an explicitly read-only public preview using illustrative notes. Filing, endorsements, and reporting are disabled. Set the variable to the HTTPS API endpoint and rerun the workflow to enable the shared wall.
 
